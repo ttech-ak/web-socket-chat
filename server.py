@@ -64,6 +64,15 @@ async def handler(websocket):
         ok, err = await do_action(websocket, action, msg)
         if not ok:
             await websocket.send(f"error: {err}")
+    for chan in channels:
+        chan.discard(websocket)
+    try:
+        nick = users[websocket]["nick"]
+        del nicks[nick]
+        del users[websocket]
+        logger.info(f"deleted nick {nick}")
+    except Exception:
+        pass # open-close
 
 async def main():
     port=8001
@@ -77,6 +86,6 @@ async def main():
 
 if __name__ == "__main__":
     wlgr = logging.getLogger("websockets")
-    wlgr.setLevel(logging.DEBUG)
+    #wlgr.setLevel(logging.DEBUG)
     asyncio.run(main())
 
