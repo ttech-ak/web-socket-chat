@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>WEB IRC</title>
+  </head>
+  <body>
+    <form>
+      <label>Nick: <input type="text" id="newNick"></label>
+      <button type="button" onclick="setNick();">Set Nick!</button>
+    </form>
+    <br>
+    <form>
+      <label>Channel: <input type="text" id="newChan"></label>
+      <button type="button" onclick="joinChan();">Join Channel!</button>
+    </form>
+    <br>
+    <form>
+      <label>Channel: <input type="text" id="msgChan"></label>
+      <label>Message: <input type="text" id="msgMsg"></label>
+      <button type="button" onclick="sendMsg();">Send Message!</button>
+    </form>
+    <br>
+    <br>
+    <h1>Messages!</h1>
+    <div class="messages">
+      
+    </div>
+    <div id="errdiv">
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>

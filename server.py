@@ -42,8 +42,11 @@ async def parse_msg(message: str) -> tuple[dict[str, str], bool]:
                     pass
     except ValueError as e:
         invalid(f"invalid format: {e}")
+    except KeyError as e:
+        invalid(f"invalid format, key not found: {e}")        
     except Exception as e:
         invalid(f"unknown error: {e}")
+    logger.info(f"parsing finished, results: ({msg},{ok})")
     return (msg, ok)
 
 users: dict = {}
@@ -91,9 +94,11 @@ async def handler(websocket):
         logger.info(f"got msg: {msg}")
         if not ok:
             await websocket.send(f"error: {msg["reason"]}")
+            continue
         ok, err = await do_action(websocket, msg["action"], msg)
         if not ok:
             await websocket.send(f"error: {err}")
+            continue
     for chan in channels.values():
         chan.discard(websocket)
     try:
