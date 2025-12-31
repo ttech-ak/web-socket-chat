@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import asyncio
 import logging
+import sqlalchemy.ext.asyncio as asa
 from websockets.asyncio.server import serve, broadcast
 from collections import defaultdict
 import argparse
 import json
+import history
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +55,9 @@ users: dict = {}
 nicks: dict = {}
 channels: defaultdict[str, set] = defaultdict(set)
 
-async def do_action(websocket, action: str, params: dict[str, str]) -> tuple[bool, str]:
+async def do_action(websocket,
+                    con: asa.AsyncSession,
+                    action: str, params: dict[str, str]) -> tuple[bool, str]:
     if websocket not in users and action != "nick":
         return False, "must have a nick"
     if action == "nick":
@@ -65,6 +69,7 @@ async def do_action(websocket, action: str, params: dict[str, str]) -> tuple[boo
         logger.info(f"setting nick to {wanted_nick}")
         users[websocket] = {"nick": wanted_nick}
         nicks[wanted_nick] = websocket
+        await history.add_nick(con, wanted_nick)
         return True, ""
 
     user = users[websocket]
@@ -79,6 +84,7 @@ async def do_action(websocket, action: str, params: dict[str, str]) -> tuple[boo
             if len(channels[chan]) == 0:
                 return False, f"no such channel: {chan}"
             broadcast(channels[chan], f"{chan}	{nick}: {pmsg}")
+            await history.add_log(con, chan, nick, pmsg)
         case 'join':
             channels[chan].add(websocket)
             return True, f"joined {chan}"
@@ -88,17 +94,20 @@ async def do_action(websocket, action: str, params: dict[str, str]) -> tuple[boo
     return True, ""
 
 
-async def handler(websocket):
+async def handler(websocket, sess: asa.async_sessionmaker[asa.AsyncSession]):
     async for message in websocket:
         msg, ok = await parse_msg(message)
         logger.info(f"got msg: {msg}")
         if not ok:
             await websocket.send(f"error: {msg["reason"]}")
             continue
-        ok, err = await do_action(websocket, msg["action"], msg)
-        if not ok:
-            await websocket.send(f"error: {err}")
-            continue
+        async with sess() as con:
+            ok, err = await do_action(websocket, con, msg["action"], msg)
+            if not ok:
+                await websocket.send(f"error: {err}")
+                continue
+            else:
+                await con.commit()
     for chan in channels.values():
         chan.discard(websocket)
     try:
@@ -110,10 +119,15 @@ async def handler(websocket):
         pass # no nick was defined.
 
 async def main(host, port):
+    sess = await history.NewEngine(args.db)
     logger.info(f"listening on {port}")
+
+    async def my_handler(websocket):
+        await handler(websocket, sess)
+    
     try:
         stop = asyncio.get_event_loop().create_future()
-        async with serve(handler, host, port):
+        async with serve(my_handler, host, port):
             await stop
     except asyncio.exceptions.CancelledError:
         logger.info("cancelled main!")
@@ -125,6 +139,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument('-p', '--port', default=8001, type=int)
     parser.add_argument('-H', '--host', default="")
+    parser.add_argument('-d', '--db', default="sqlite+aiosqlite:///db.db")
     args = parser.parse_args()
     return args
 
