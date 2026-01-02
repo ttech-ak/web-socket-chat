@@ -1,4 +1,4 @@
-const websocket = new WebSocket("ws://192.168.1.218:8001/");
+const websocket = new WebSocket("ws://localhost:8001/");
 
 websocket.addEventListener("message", ({data}) => {
     setError(data);

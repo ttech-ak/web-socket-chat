@@ -87,6 +87,9 @@ async def do_action(websocket,
             await history.add_log(con, chan, nick, pmsg)
         case 'join':
             channels[chan].add(websocket)
+            bl = await history.get_backlog(con, chan)
+            for log in bl:
+                await websocket.send(f"{log.timestamp}\t{log.nick}: {log.msg}")
             return True, f"joined {chan}"
         case 'leave':
             channels[chan].discard(websocket)
@@ -101,13 +104,12 @@ async def handler(websocket, sess: asa.async_sessionmaker[asa.AsyncSession]):
         if not ok:
             await websocket.send(f"error: {msg["reason"]}")
             continue
-        async with sess() as con:
+        async with sess.begin() as con:
             ok, err = await do_action(websocket, con, msg["action"], msg)
             if not ok:
                 await websocket.send(f"error: {err}")
+                await con.rollback()
                 continue
-            else:
-                await con.commit()
     for chan in channels.values():
         chan.discard(websocket)
     try:
@@ -119,7 +121,7 @@ async def handler(websocket, sess: asa.async_sessionmaker[asa.AsyncSession]):
         pass # no nick was defined.
 
 async def main(host, port):
-    sess = await history.NewEngine(args.db)
+    engine, sess = await history.NewEngine(args.db)
     logger.info(f"listening on {port}")
 
     async def my_handler(websocket):
@@ -130,6 +132,7 @@ async def main(host, port):
         async with serve(my_handler, host, port):
             await stop
     except asyncio.exceptions.CancelledError:
+        await engine.dispose()
         logger.info("cancelled main!")
 
 def parse_args() -> argparse.Namespace:
