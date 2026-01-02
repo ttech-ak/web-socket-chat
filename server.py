@@ -78,6 +78,8 @@ async def do_action(websocket,
     if "channel" in params:
         # ensured above all needed messages actually have this key, and is an identifier
         chan = params["channel"]
+    else:
+        raise ValueError("do_action: params must have channel!")
     match action:
         case 'privmsg':
             chan, pmsg = params["channel"], params["message"]
@@ -120,16 +122,16 @@ async def handler(websocket, sess: asa.async_sessionmaker[asa.AsyncSession]):
     except KeyError:
         pass # no nick was defined.
 
-async def main(host, port):
+async def main(args: argparse.Namespace):
     engine, sess = await history.NewEngine(args.db)
-    logger.info(f"listening on {port}")
+    logger.info(f"listening on {args.port}")
 
     async def my_handler(websocket):
         await handler(websocket, sess)
     
     try:
         stop = asyncio.get_event_loop().create_future()
-        async with serve(my_handler, host, port):
+        async with serve(my_handler, args.host, args.port):
             await stop
     except asyncio.exceptions.CancelledError:
         await engine.dispose()
@@ -146,9 +148,11 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     return args
 
-if __name__ == "__main__":
+def main_wrap():
     # wlgr = logging.getLogger("websockets")
     # wlgr.setLevel(logging.DEBUG)
     args = parse_args()
-    asyncio.run(main(host=args.host, port=args.port))
+    asyncio.run(main(args))
 
+if __name__ == "__main__":
+    main_wrap()

@@ -1,5 +1,8 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
 [project]
-name = "chat-weboscket"
+name = "chat_weboscket"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -9,4 +12,10 @@ dependencies = [
     "greenlet>=3.3.0",
     "sqlalchemy>=2.0",
     "websockets>=15.0.1",
+    "mypy>=1.19.1",
+    "pyright",
 ]
+[projects.scripts]
+chat-websocket = "server:main_wrap"
+[tool.setuptools]
+py-modules = ["server"]
